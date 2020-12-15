@@ -1,0 +1,31 @@
+{
+  "name": "inventory-tracker",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node -r dotenv/config src/index.ts",
+    "start": "node -r dotenv/config dist/index.js"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0-rc.3",
+    "dotenv": "^8.2.0",
+    "md5": "^2.3.0",
+    "puppeteer": "^5.5.0",
+    "sqlite": "^4.0.18",
+    "sqlite3": "^5.0.0",
+    "twilio": "^3.54.0"
+  },
+  "devDependencies": {
+    "@types/debug": "^4.1.5",
+    "@types/md5": "^2.2.1",
+    "@types/node": "^14.14.13",
+    "@types/puppeteer": "^5.4.2",
+    "@types/twilio": "^2.11.0",
+    "debug": "^4.3.1",
+    "prettier": "^2.2.1",
+    "ts-node": "^9.1.1",
+    "typescript": "^4.1.3"
+  }
+}

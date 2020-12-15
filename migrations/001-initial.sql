@@ -1,0 +1,10 @@
+-- Up
+
+CREATE TABLE IF NOT EXISTS alerts (
+  url TEXT NOT NULL PRIMARY KEY,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Down
+
+DROP TABLE alerts;
