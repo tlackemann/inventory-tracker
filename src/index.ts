@@ -6,6 +6,7 @@
 
 import * as md5 from 'md5'
 import debug from 'debug'
+import { map } from 'bluebird'
 import * as sqlite3 from 'sqlite3'
 import { Twilio } from 'twilio'
 import { launch, Browser, Page } from 'puppeteer'
@@ -48,7 +49,10 @@ class Scraper {
 
     log.info('Scraping %s', url)
 
+    const userAgent = await this.browser.userAgent()
     const page = await this.browser.newPage()
+    await page.setUserAgent(userAgent.replace(/Headless/g, ''))
+
     await page.goto(url)
     return page
   }
@@ -56,29 +60,45 @@ class Scraper {
   check = async (page: Page) => {
     let buyButton = false
     const buttons = await page.$$('button')
-    await Promise.all(Array.from(buttons).map(async button => {
-      // @ts-ignore
-      const addToCart = await button.evaluate(node => node.innerText.toLowerCase().trim() === 'add to cart')
+    const inputs = await page.$$('input')
 
-      if (!buyButton && addToCart) {
+    log.debug('Checking for "Add to Cart" button')
+
+    await Promise.all([ ...Array.from(buttons), ...Array.from(inputs)].map(async button => {
+      // @ts-ignore
+      const addToCartText = await button.evaluate(node => node.innerText.toLowerCase().trim() === 'add to cart')
+      // @ts-ignore
+      const addToCartValue = await button.evaluate(node => node.value.toLowerCase().trim() === 'add to cart')
+      const visible = await button.boundingBox()
+
+      if (!buyButton && visible && (addToCartText || addToCartValue)) {
         buyButton = true
       }
     }))
 
-    const title= await page.title()
+    const title = await page.title()
     if (buyButton) {
       log.info('"%s" is AVAILABLE', title)
     } else {
       log.debug('"%s" is not available', title)
     }
 
-    // await page.screenshot({path: `screenshots/${Date.now()}-${md5(url)}.png`});
+    // await page.screenshot({path: `screenshots/${Date.now()}-${md5(title)}.png`});
 
     return buyButton
   }
 
   start = async () => {
-    this.browser = await launch()
+    this.browser = await launch({
+      args: process.getuid() === 0 ? ['--no-sandbox'] : undefined, // UID 0 is always root
+      defaultViewport: {
+        width: 1024,
+        height: 768,
+      },
+      headless: true,
+      product: 'chrome',
+      timeout: 10000,
+    })
   }
 
   close = () => this.browser?.close()
@@ -110,8 +130,11 @@ async function start() {
     const messanger = new Messanger()
     const scraper = new Scraper()
 
+    log.debug('Launching browser ...')
     await scraper.start()
-    await Promise.all(urls.map(async url => {
+    log.debug('Browser launched')
+
+    await map(urls, async url => {
       try {
         const page = await scraper.scrape(url)
         const available = await scraper.check(page)
@@ -127,10 +150,12 @@ async function start() {
             await messanger.send(`"${title}" IS AVAILABLE - ${url}`)
           }
         }
+
+        await page.close()
       } catch (e) {
         log.error('Failed to scrape %s', url, e)
       }
-    }))
+    }, { concurrency: Number(process.env.CONCURRENCY || 1) })
     await scraper.close()
 
     const totalMs = ((Date.now() - start) / 1000).toFixed(2)
